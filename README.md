@@ -56,6 +56,97 @@ npm run test:watch   # Run tests in watch mode
 
 The server speaks MCP over stdio. Point any MCP client at the built binary `dist/index.js` — the protocol is client-agnostic, so the same server works with Claude, GitHub Copilot, Gemini, and Kiro. Only the client-side config file differs.
 
+### Local deployment
+
+Three modes, in order of permanence. All run the server locally — the protocol works identically across all three.
+
+#### Option A — Dev mode (fastest iteration)
+
+Runs straight from TypeScript via `tsx`. No build step.
+
+```bash
+npm install
+```
+
+Project-scoped `.mcp.json` (already in the repo for Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "dotnet-migration": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"]
+    }
+  }
+}
+```
+
+Trade-off: ~1s startup overhead per launch and dev dependencies must be installed.
+
+If you're using Claude Code, also confirm the server isn't listed under `disabledMcpjsonServers` in `.claude/settings.local.json` — that key blocks `.mcp.json` entries from loading.
+
+#### Option B — Compiled local (recommended)
+
+Build once to `dist/`, then launch from compiled JS. No dev-dep overhead, deterministic startup.
+
+```bash
+npm install
+npm run build
+```
+
+`.mcp.json` (or any client config):
+
+```json
+{
+  "mcpServers": {
+    "dotnet-migration": {
+      "command": "node",
+      "args": ["dist/index.js"]
+    }
+  }
+}
+```
+
+For non–Claude-Code clients use the absolute path: `C:/Vibe/Migration/dist/index.js`. Rebuild (`npm run build`) and restart the server in your client after any `src/` change.
+
+#### Option C — Globally installed CLI
+
+`package.json` declares a bin (`dotnet-migration-mcp` → `dist/index.js`). Put it on your PATH:
+
+```bash
+npm run build
+npm link          # or: npm install -g .
+```
+
+Verify:
+
+```bash
+where.exe dotnet-migration-mcp   # Windows
+which dotnet-migration-mcp        # macOS/Linux
+```
+
+Then every client config collapses to:
+
+```json
+{
+  "mcpServers": {
+    "dotnet-migration": { "command": "dotnet-migration-mcp" }
+  }
+}
+```
+
+For Unix portability the CLI needs `#!/usr/bin/env node` as the first line of `src/index.ts` so `tsc` emits it into `dist/index.js`. On Windows npm generates a `.cmd` shim so the CLI works either way.
+
+#### Smoke test (no client needed)
+
+Pipe a JSON-RPC `tools/list` request directly to the server and check it answers:
+
+```powershell
+'{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
+```
+
+A clean run returns JSON listing all seven tools. If you get garbage or silence, something is leaking to stdout — only stderr is safe (`.claude/rules/mcp-server.md`).
+
 ### Client configuration
 
 All clients spawn `node dist/index.js` as a subprocess and talk JSON-RPC over stdio. Use an **absolute path** (or `${workspaceFolder}` for VS Code) to `dist/index.js`.

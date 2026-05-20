@@ -1,4 +1,6 @@
 import Parser from 'web-tree-sitter';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 let parserInstance: Parser | null = null;
 let csharpLanguage: Parser.Language | null = null;
@@ -44,10 +46,6 @@ export function getLanguage(): Parser.Language {
 }
 
 function findCSharpWasm(): string {
-  // Look for the C# grammar WASM in common locations
-  const { existsSync } = require('fs') as typeof import('fs');
-  const { join } = require('path') as typeof import('path');
-
   const candidates = [
     join(process.cwd(), 'grammars', 'tree-sitter-c_sharp.wasm'),
     join(process.cwd(), 'node_modules', 'tree-sitter-c-sharp', 'tree-sitter-c_sharp.wasm'),

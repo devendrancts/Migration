@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type { SourcePlatformInfo, SourcePlatform } from '../types/dotnet.js';
 import { parseXml } from '../parser/xml-parser.js';
@@ -85,16 +85,13 @@ function detectConfigFormat(projectPath: string): 'webconfig' | 'appsettings' | 
 }
 
 function findFiles(dir: string, suffix: string): string[] {
-  // Simple recursive file finder
-  const { readdirSync, statSync } = require('fs') as typeof import('fs');
-  const { join: pathJoin } = require('path') as typeof import('path');
   const results: string[] = [];
 
   try {
     const entries = readdirSync(dir);
     for (const entry of entries) {
       if (entry === 'node_modules' || entry === 'bin' || entry === 'obj' || entry === '.git') continue;
-      const fullPath = pathJoin(dir, entry);
+      const fullPath = join(dir, entry);
       try {
         const stat = statSync(fullPath);
         if (stat.isDirectory()) {
