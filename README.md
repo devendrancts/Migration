@@ -96,21 +96,36 @@ Or in `~/.claude.json`:
 
 #### GitHub Copilot (VS Code agent mode)
 
-`.vscode/mcp.json` in the workspace:
+**Prerequisites**: VS Code 1.99+, GitHub Copilot + Copilot Chat extensions, an active Copilot subscription.
 
-```json
-{
-  "servers": {
-    "dotnet-migration": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["${workspaceFolder}/dist/index.js"]
-    }
-  }
-}
-```
+1. Create `.vscode/mcp.json` in the workspace root (commit this for the team):
 
-Requires VS Code 1.99+ with Copilot agent mode enabled. Tools appear in the agent-mode tools picker.
+   ```json
+   {
+     "servers": {
+       "dotnet-migration": {
+         "type": "stdio",
+         "command": "node",
+         "args": ["${workspaceFolder}/dist/index.js"]
+       }
+     }
+   }
+   ```
+
+   Alternatively, run `MCP: Add Server` from the Command Palette to register it in your user `settings.json` (under `"mcp.servers"`) so it's available in every workspace.
+
+2. Start it: Command Palette → `MCP: List Servers` → click **Start** next to `dotnet-migration`. Trust the server when prompted. The status should flip to **Running**.
+
+3. Open Copilot Chat (`Ctrl+Alt+I`), switch the mode dropdown to **Agent**, click the **Tools** (wrench) icon, and tick the seven `dotnet-migration` tools.
+
+4. Drive it in plain English — e.g., *"Analyze the .NET project at C:/some/legacy-app and start a migration wizard using Clean Architecture."* Copilot picks the tool, shows the arguments, and asks for confirmation on first use; click **Always Allow** to silence subsequent prompts.
+
+Notes:
+
+- **Only Agent mode uses MCP.** Ask and Edit modes ignore `.vscode/mcp.json`.
+- **Logs**: Output panel → "MCP" dropdown → `dotnet-migration` shows the server's stderr.
+- **Iterating**: after `npm run build`, restart the server from `MCP: List Servers` to pick up changes — VS Code does not auto-restart.
+- **Secrets**: add an `"env": { "KEY": "value" }` block alongside `command`/`args`. Use `${input:variableName}` to prompt at runtime and keep secrets out of the committed file.
 
 #### Gemini (CLI / Code Assist)
 
