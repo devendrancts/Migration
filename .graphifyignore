@@ -1,0 +1,6 @@
+*.md
+docs/
+graphify-out/
+node_modules/
+dist/
+coverage/
