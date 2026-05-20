@@ -28,8 +28,21 @@
       }
     },
     {
+      "label": "Run MCP Server (Built)",
+      "type": "shell",
+      "command": "node",
+      "args": ["dist/index.mjs"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
       "label": "Build and Run MCP Server",
-      "dependsOn": ["Build MCP Server", "Run MCP Server (Dev)"],
+      "dependsOn": ["Build MCP Server", "Run MCP Server (Built)"],
       "dependsOrder": "sequence",
       "problemMatcher": [],
       "group": "none"
