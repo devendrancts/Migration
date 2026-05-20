@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "dotnet-migration": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
+      "env": {
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}

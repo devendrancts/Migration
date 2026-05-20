@@ -1,7 +1,37 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "Bash(*)",
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "mcp__dotnet-migration__analyze_project",
+      "mcp__dotnet-migration__build_project",
+      "mcp__dotnet-migration__run_tests"
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "dotnet-migration"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "agent",
+            "model": "claude-sonnet-4-6",
+            "timeout": 300,
+            "statusMessage": "docs-syncer reviewing change...",
+            "prompt": "Act as the `docs-syncer` subagent. Read your full brief from `.claude/agents/docs-syncer.md` and follow it exactly. Your input is the PostToolUse hook payload below — treat it as the \"From a PostToolUse hook\" invocation path described in the brief.\n\nHook input:\n$ARGUMENTS"
+          }
+        ]
+      }
     ]
   }
 }
