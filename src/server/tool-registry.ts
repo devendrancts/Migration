@@ -23,6 +23,7 @@ import { WizardSession } from '../wizard/wizard-session.js';
 import { getStepDefinition } from '../wizard/wizard-steps.js';
 import type { WizardStep } from '../wizard/wizard-types.js';
 import { runUnifiedWizard } from '../wizard/unified-wizard.js';
+import { createTargetPlatformRegistry } from '../target-platforms/index.js';
 
 // In-memory graph cache keyed by project path
 const graphCache = new Map<string, ProjectGraph>();
@@ -289,25 +290,152 @@ export function registerAllTools(server: McpServer): void {
     },
   );
 
+  // ── get_wizard_form ──
+  server.tool(
+    'get_wizard_form',
+    'Get ALL migration wizard questions with available choices and defaults in one response. Present these to the user as a single form/checklist so they can answer everything at once. After collecting answers, call migration_wizard with all values in a single call.',
+    { sourcePath: z.string() },
+    async ({ sourcePath }) => {
+      const platformInfo = detectPlatform(sourcePath);
+      const registry = createTargetPlatformRegistry();
+      const platforms = registry.getAvailable();
+
+      const formatOptions = (opts: { value: string; label: string; description: string; isDefault: boolean }[]) =>
+        opts.map((o) => ({
+          value: o.value,
+          label: o.label,
+          description: o.description,
+          default: o.isDefault,
+        }));
+
+      // Get options for each platform
+      const platformOptions: Record<string, unknown> = {};
+      for (const p of platforms) {
+        const plat = registry.get(p.id as import('../types/migration.js').TargetPlatformId);
+        platformOptions[p.id] = {
+          orm: formatOptions(plat.optionsSchema.ormOptions),
+          auth: formatOptions(plat.optionsSchema.authOptions),
+          di: formatOptions(plat.optionsSchema.diOptions),
+          validation: formatOptions(plat.optionsSchema.validationOptions),
+          testFramework: formatOptions(plat.optionsSchema.testFrameworkOptions),
+          apiDocs: formatOptions(plat.optionsSchema.apiDocsOptions),
+        };
+      }
+
+      const form = {
+        instructions: 'Present ALL these questions to the user as a single form. Collect all answers, then call migration_wizard with the complete set of values in ONE call.',
+        detectedPlatform: platformInfo,
+        questions: [
+          {
+            id: 'sourcePath',
+            question: 'Source .NET project path',
+            type: 'string',
+            required: true,
+            currentValue: sourcePath,
+          },
+          {
+            id: 'outputPath',
+            question: 'Output directory for migrated project',
+            type: 'string',
+            required: false,
+            default: `${sourcePath}-migrated`,
+          },
+          {
+            id: 'targetPlatform',
+            question: 'Target platform',
+            type: 'select',
+            choices: platforms.map((p) => ({ value: p.id, label: p.displayName })),
+            default: 'nodejs-express',
+          },
+          {
+            id: 'architecture',
+            question: 'Output architecture',
+            type: 'select',
+            choices: [
+              { value: 'mvc', label: 'MVC (flat structure, simple APIs)' },
+              { value: 'clean', label: 'Clean Architecture (layered, medium-large projects)' },
+              { value: 'ddd', label: 'DDD (bounded contexts, CQRS, complex domains)' },
+            ],
+            default: 'auto-detected by project size',
+          },
+          {
+            id: 'orm',
+            question: 'ORM / Data access',
+            type: 'select',
+            note: 'Choices depend on target platform. Shown below per platform.',
+          },
+          {
+            id: 'auth',
+            question: 'Authentication strategy',
+            type: 'select',
+            note: 'Choices depend on target platform.',
+          },
+          {
+            id: 'validation',
+            question: 'Validation library',
+            type: 'select',
+            note: 'Choices depend on target platform.',
+          },
+          {
+            id: 'testFramework',
+            question: 'Test framework',
+            type: 'select',
+            note: 'Choices depend on target platform.',
+          },
+          {
+            id: 'coverageTarget',
+            question: 'Test coverage target (%)',
+            type: 'number',
+            default: 80,
+            range: '0-100',
+          },
+          {
+            id: 'unitTests',
+            question: 'Generate unit tests?',
+            type: 'boolean',
+            default: true,
+          },
+          {
+            id: 'integrationTests',
+            question: 'Generate integration tests?',
+            type: 'boolean',
+            default: true,
+          },
+          {
+            id: 'performanceTests',
+            question: 'Generate performance tests?',
+            type: 'boolean',
+            default: false,
+          },
+        ],
+        platformOptions,
+      };
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(form, null, 2) }],
+      };
+    },
+  );
+
   // ── migration_wizard (unified single-call wizard) ──
   server.tool(
     'migration_wizard',
-    'Configure and launch a complete .NET migration in one call. Collects all preferences, applies smart defaults, sets up permissions in the target workspace, and builds the knowledge graph. Only sourcePath is required — all other options have sensible defaults.',
+    'Execute a complete .NET migration. IMPORTANT: First call get_wizard_form to show the user all questions at once. After collecting ALL answers, call this tool with every value in a single call. This sets up permissions, builds the knowledge graph, and returns the confirmed migration config.',
     {
-      sourcePath: z.string().describe('Path to the .NET source project'),
-      outputPath: z.string().optional().describe('Output directory for migrated project (default: {sourcePath}-migrated)'),
-      targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional().describe('Target platform (default: nodejs-express)'),
-      architecture: z.enum(['mvc', 'clean', 'ddd']).optional().describe('Output architecture (default: auto-detected by project size)'),
-      orm: z.string().optional().describe('ORM choice (default: platform default e.g. prisma/spring-data-jpa/sqlalchemy)'),
-      auth: z.string().optional().describe('Auth strategy (default: platform default e.g. passport-jwt/spring-security-jwt)'),
-      di: z.string().optional().describe('DI container (default: platform default)'),
-      validation: z.string().optional().describe('Validation library (default: platform default e.g. zod/bean-validation/pydantic)'),
-      testFramework: z.string().optional().describe('Test framework (default: platform default e.g. vitest/junit5/pytest)'),
-      apiDocs: z.string().optional().describe('API docs UI (default: platform default)'),
-      coverageTarget: z.number().min(0).max(100).optional().describe('Test coverage target % (default: 80)'),
-      unitTests: z.boolean().optional().describe('Generate unit tests (default: true)'),
-      integrationTests: z.boolean().optional().describe('Generate integration tests (default: true)'),
-      performanceTests: z.boolean().optional().describe('Generate performance tests (default: false)'),
+      sourcePath: z.string(),
+      outputPath: z.string().optional(),
+      targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional(),
+      architecture: z.enum(['mvc', 'clean', 'ddd']).optional(),
+      orm: z.string().optional(),
+      auth: z.string().optional(),
+      di: z.string().optional(),
+      validation: z.string().optional(),
+      testFramework: z.string().optional(),
+      apiDocs: z.string().optional(),
+      coverageTarget: z.number().min(0).max(100).optional(),
+      unitTests: z.boolean().optional(),
+      integrationTests: z.boolean().optional(),
+      performanceTests: z.boolean().optional(),
     },
     async (params) => {
       const { result, options, graph } = await runUnifiedWizard(params);
