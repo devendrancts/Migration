@@ -430,10 +430,11 @@ export function registerAllTools(server: McpServer): void {
   // ── migration_wizard (unified single-call wizard) ──
   server.tool(
     'migration_wizard',
-    'Execute a complete .NET migration. IMPORTANT: First call get_wizard_form to show the user all questions at once. After collecting ALL answers, call this tool with every value in a single call. This sets up permissions, builds the knowledge graph, and returns the confirmed migration config.',
+    'Execute a complete .NET migration. REQUIRED FLOW: (1) Call this tool with ONLY sourcePath to get the wizard form with all questions and available choices. (2) Present ALL questions to the user and collect their answers. (3) Call this tool AGAIN with sourcePath, outputPath, userConfirmed=true, and ALL user-selected values. Do NOT skip the form step or use defaults without user consent.',
     {
       sourcePath: z.string(),
-      outputPath: z.string().describe('Destination path for the migrated application'),
+      outputPath: z.string().optional().describe('Destination path for the migrated application'),
+      userConfirmed: z.boolean().optional().describe('Set to true ONLY after the user has reviewed and confirmed all wizard choices'),
       targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional(),
       architecture: z.enum(['mvc', 'clean', 'ddd']).optional(),
       orm: z.string().optional(),
@@ -448,7 +449,149 @@ export function registerAllTools(server: McpServer): void {
       performanceTests: z.boolean().optional(),
     },
     async (params) => {
-      const { result, options, graph } = await runUnifiedWizard(params);
+      // ── Step 1: If userConfirmed is not true, return the wizard form ──
+      if (!params.userConfirmed) {
+        const platformInfo = detectPlatform(params.sourcePath);
+        const registry = createTargetPlatformRegistry();
+        const platforms = registry.getAvailable();
+
+        const formatOptions = (opts: { value: string; label: string; description: string; isDefault: boolean }[]) =>
+          opts.map((o) => ({
+            value: o.value,
+            label: o.label,
+            description: o.description,
+            default: o.isDefault,
+          }));
+
+        const platformOptions: Record<string, unknown> = {};
+        for (const p of platforms) {
+          const plat = registry.get(p.id as import('../types/migration.js').TargetPlatformId);
+          platformOptions[p.id] = {
+            orm: formatOptions(plat.optionsSchema.ormOptions),
+            auth: formatOptions(plat.optionsSchema.authOptions),
+            di: formatOptions(plat.optionsSchema.diOptions),
+            validation: formatOptions(plat.optionsSchema.validationOptions),
+            testFramework: formatOptions(plat.optionsSchema.testFrameworkOptions),
+            apiDocs: formatOptions(plat.optionsSchema.apiDocsOptions),
+          };
+        }
+
+        const form = {
+          status: 'awaiting_user_input',
+          instructions: 'STOP. Present ALL these questions to the user as a form/checklist. Wait for their answers. Then call migration_wizard AGAIN with userConfirmed=true and all their selected values. Do NOT proceed with defaults.',
+          detectedPlatform: platformInfo,
+          questions: [
+            {
+              id: 'sourcePath',
+              question: 'Source .NET project path',
+              type: 'string',
+              required: true,
+              currentValue: params.sourcePath,
+            },
+            {
+              id: 'outputPath',
+              question: 'Destination path for the migrated application',
+              type: 'string',
+              required: true,
+              default: `${params.sourcePath}-migrated`,
+              note: 'Full absolute path for the migrated project output.',
+            },
+            {
+              id: 'targetPlatform',
+              question: 'Target platform',
+              type: 'select',
+              choices: platforms.map((p) => ({ value: p.id, label: p.displayName })),
+              default: 'nodejs-express',
+            },
+            {
+              id: 'architecture',
+              question: 'Output architecture',
+              type: 'select',
+              choices: [
+                { value: 'mvc', label: 'MVC (flat structure, simple APIs)' },
+                { value: 'clean', label: 'Clean Architecture (layered, medium-large projects)' },
+                { value: 'ddd', label: 'DDD (bounded contexts, CQRS, complex domains)' },
+              ],
+              default: 'mvc',
+            },
+            {
+              id: 'orm',
+              question: 'ORM / Data access',
+              type: 'select',
+              note: 'Choices depend on target platform — see platformOptions below.',
+            },
+            {
+              id: 'auth',
+              question: 'Authentication strategy',
+              type: 'select',
+              note: 'Choices depend on target platform.',
+            },
+            {
+              id: 'di',
+              question: 'Dependency injection container',
+              type: 'select',
+              note: 'Choices depend on target platform.',
+            },
+            {
+              id: 'validation',
+              question: 'Validation library',
+              type: 'select',
+              note: 'Choices depend on target platform.',
+            },
+            {
+              id: 'testFramework',
+              question: 'Test framework',
+              type: 'select',
+              note: 'Choices depend on target platform.',
+            },
+            {
+              id: 'apiDocs',
+              question: 'API documentation UI',
+              type: 'select',
+              note: 'Choices depend on target platform.',
+            },
+            {
+              id: 'coverageTarget',
+              question: 'Test coverage target (%)',
+              type: 'number',
+              default: 80,
+              range: '0-100',
+            },
+            {
+              id: 'unitTests',
+              question: 'Generate unit tests?',
+              type: 'boolean',
+              default: true,
+            },
+            {
+              id: 'integrationTests',
+              question: 'Generate integration tests?',
+              type: 'boolean',
+              default: true,
+            },
+            {
+              id: 'performanceTests',
+              question: 'Generate performance tests?',
+              type: 'boolean',
+              default: false,
+            },
+          ],
+          platformOptions,
+        };
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(form, null, 2) }],
+        };
+      }
+
+      // ── Step 2: userConfirmed=true — validate required fields and execute ──
+      if (!params.outputPath) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'outputPath is required when userConfirmed is true. Ask the user for the destination path.' }) }],
+        };
+      }
+
+      const { result, options, graph } = await runUnifiedWizard(params as import('../wizard/wizard-types.js').UnifiedWizardInput);
       const output = { ...result, resolvedOptions: options, graph };
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
