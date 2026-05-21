@@ -51,7 +51,7 @@ npm run test:watch   # Run tests in watch mode
 | `analyze_project` | Detect .NET framework version, patterns, and dependencies |
 | `start_wizard` | Begin an interactive migration wizard session |
 | `get_wizard_step` | Get definition/choices for a wizard step |
-| `set_wizard_choice` | Set a choice for a wizard step |
+| `set_wizard_choice` | Set a choice or text input for a wizard step (choice steps pass option value; text-input steps like `choose_output` pass the custom folder path) |
 | `confirm_wizard` | Finalize wizard config and set output path |
 | `build_project` | Build the migrated project (placeholder) |
 | `run_tests` | Run tests on the migrated project (placeholder) |
