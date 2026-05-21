@@ -335,10 +335,11 @@ export function registerAllTools(server: McpServer): void {
           },
           {
             id: 'outputPath',
-            question: 'Output directory for migrated project',
+            question: 'Destination path — where should the migrated application be generated?',
             type: 'string',
-            required: false,
+            required: true,
             default: `${sourcePath}-migrated`,
+            note: 'Full absolute path for the migrated project output. This directory will be created if it does not exist.',
           },
           {
             id: 'targetPlatform',
@@ -423,7 +424,7 @@ export function registerAllTools(server: McpServer): void {
     'Execute a complete .NET migration. IMPORTANT: First call get_wizard_form to show the user all questions at once. After collecting ALL answers, call this tool with every value in a single call. This sets up permissions, builds the knowledge graph, and returns the confirmed migration config.',
     {
       sourcePath: z.string(),
-      outputPath: z.string().optional(),
+      outputPath: z.string().describe('Destination path for the migrated application'),
       targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional(),
       architecture: z.enum(['mvc', 'clean', 'ddd']).optional(),
       orm: z.string().optional(),
