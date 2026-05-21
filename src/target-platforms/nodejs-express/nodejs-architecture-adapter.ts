@@ -11,13 +11,48 @@ export class NodeJsArchitectureAdapter implements TargetArchitectureAdapter {
     return [...parts, physicalName].join('/');
   }
 
-  getScaffoldFiles(_architecture: ArchitectureType): GeneratedFile[] {
-    // TODO: Generate scaffold files for the given architecture
-    return [];
+  getScaffoldFiles(architecture: ArchitectureType): GeneratedFile[] {
+    const mvc: GeneratedFile[] = [
+      gitkeep('src/routes/.gitkeep'),
+      gitkeep('src/models/.gitkeep'),
+      gitkeep('src/services/.gitkeep'),
+      gitkeep('src/middleware/.gitkeep'),
+      gitkeep('src/config/.gitkeep'),
+      gitkeep('src/types/.gitkeep'),
+    ];
+
+    if (architecture === 'mvc') {
+      return mvc;
+    }
+
+    const clean: GeneratedFile[] = [
+      ...mvc,
+      gitkeep('src/domain/entities/.gitkeep'),
+      gitkeep('src/domain/repositories/.gitkeep'),
+      gitkeep('src/domain/value-objects/.gitkeep'),
+      gitkeep('src/application/use-cases/.gitkeep'),
+      gitkeep('src/application/dtos/.gitkeep'),
+      gitkeep('src/infrastructure/persistence/.gitkeep'),
+      gitkeep('src/infrastructure/config/.gitkeep'),
+      gitkeep('src/presentation/controllers/.gitkeep'),
+      gitkeep('src/presentation/routes/.gitkeep'),
+    ];
+
+    if (architecture === 'clean') {
+      return clean;
+    }
+
+    // ddd extends clean
+    return [
+      ...clean,
+      gitkeep('src/modules/.gitkeep'),
+      gitkeep('src/shared/di/.gitkeep'),
+      gitkeep('src/domain/events/.gitkeep'),
+      gitkeep('src/domain/services/.gitkeep'),
+    ];
   }
 
   getEntryPointFiles(_architecture: ArchitectureType): GeneratedFile[] {
-    // TODO: Generate entry point files for the given architecture
     return [];
   }
 
@@ -36,6 +71,10 @@ export class NodeJsArchitectureAdapter implements TargetArchitectureAdapter {
 }
 
 // ── Helpers ──
+
+function gitkeep(relativePath: string): GeneratedFile {
+  return { relativePath, content: '', overwrite: false };
+}
 
 function toKebabCase(name: string): string {
   if (name.includes('_') || name.includes('-')) {

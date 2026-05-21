@@ -56,6 +56,9 @@ export class WizardSession {
       case 'choose_architecture':
         this.choices.architecture = value as MigrationOptions['architecture'];
         break;
+      case 'choose_output':
+        this.outputPath = value;
+        break;
       default:
         break;
     }

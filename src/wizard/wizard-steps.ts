@@ -154,15 +154,22 @@ export function getStepDefinition(
         previousStep: 'architecture_options',
       };
 
-    case 'choose_output':
+    case 'choose_output': {
+      const sourcePath = session?.sourcePath ?? '';
+      const suggestedPath = sourcePath ? `${sourcePath}-migrated` : '';
       return {
         step: 'choose_output',
         title: 'Choose Output Directory',
         description:
-          'Specify the output directory where the migrated project will be written.',
+          'Specify a custom absolute folder path where the migrated project will be written. The directory will be created if it does not exist.',
+        inputType: 'text',
+        placeholder: suggestedPath || 'e.g. C:\\path\\to\\migrated-app',
+        defaultValue: suggestedPath,
+        required: true,
         nextStep: 'review_config',
         previousStep: 'choose_testing',
       };
+    }
 
     case 'review_config':
       return {

@@ -247,7 +247,7 @@ export function registerAllTools(server: McpServer): void {
   // ── set_wizard_choice ──
   server.tool(
     'set_wizard_choice',
-    'Set a choice for a wizard step.',
+    'Set a choice or text input for a wizard step. For choice steps, pass the option value. For text-input steps like choose_output, pass the custom folder path.',
     { sessionId: z.string(), step: z.string(), value: z.string() },
     async ({ sessionId, step, value }) => {
       const session = WizardSession.get(sessionId);
@@ -344,11 +344,12 @@ export function registerAllTools(server: McpServer): void {
           },
           {
             id: 'outputPath',
-            question: 'Destination path — where should the migrated application be generated?',
+            question: 'Destination path — provide a custom absolute folder path where the migrated application will be generated.',
             type: 'string',
             required: true,
             default: `${sourcePath}-migrated`,
-            note: 'Full absolute path for the migrated project output. This directory will be created if it does not exist.',
+            example: 'C:\\path\\to\\migrated-app',
+            note: 'Full absolute path for the migrated project output. This directory will be created if it does not exist. The user may type any custom folder path.',
           },
           {
             id: 'targetPlatform',
@@ -490,11 +491,12 @@ export function registerAllTools(server: McpServer): void {
             },
             {
               id: 'outputPath',
-              question: 'Destination path for the migrated application',
+              question: 'Destination path — provide a custom absolute folder path for the migrated application',
               type: 'string',
               required: true,
               default: `${params.sourcePath}-migrated`,
-              note: 'Full absolute path for the migrated project output.',
+              example: 'C:\\path\\to\\migrated-app',
+              note: 'Full absolute path for the migrated project output. The user may type any custom folder path; it will be created if it does not exist.',
             },
             {
               id: 'targetPlatform',

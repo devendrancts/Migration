@@ -15,11 +15,17 @@ export interface WizardChoice {
   isRecommended: boolean;
 }
 
+export type WizardInputType = 'choice' | 'text';
+
 export interface WizardStepDefinition {
   step: WizardStep;
   title: string;
   description: string;
   choices?: WizardChoice[];
+  inputType?: WizardInputType;
+  placeholder?: string;
+  defaultValue?: string;
+  required?: boolean;
   nextStep: WizardStep | null;
   previousStep: WizardStep | null;
 }
