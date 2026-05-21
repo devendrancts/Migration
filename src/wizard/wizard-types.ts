@@ -23,3 +23,34 @@ export interface WizardStepDefinition {
   nextStep: WizardStep | null;
   previousStep: WizardStep | null;
 }
+
+// ── Unified Wizard (single-call) ──
+
+export interface UnifiedWizardInput {
+  sourcePath: string;
+  outputPath?: string;
+  targetPlatform?: string;
+  architecture?: string;
+  orm?: string;
+  auth?: string;
+  di?: string;
+  validation?: string;
+  testFramework?: string;
+  apiDocs?: string;
+  coverageTarget?: number;
+  unitTests?: boolean;
+  integrationTests?: boolean;
+  performanceTests?: boolean;
+}
+
+export interface UnifiedWizardResult {
+  sessionId: string;
+  status: 'confirmed';
+  sourcePath: string;
+  outputPath: string;
+  defaultsApplied: string[];
+  graphSummary: string;
+  graphError?: string;
+  permissionsWritten: boolean;
+  permissionsPath: string;
+}

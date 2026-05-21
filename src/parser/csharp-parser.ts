@@ -1,6 +1,7 @@
 import Parser from 'web-tree-sitter';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 let parserInstance: Parser | null = null;
 let csharpLanguage: Parser.Language | null = null;
@@ -46,10 +47,17 @@ export function getLanguage(): Parser.Language {
 }
 
 function findCSharpWasm(): string {
+  // Resolve relative to this file's location (works in ESM and from any cwd)
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+  const projectRoot = join(thisDir, '..', '..');
+
   const candidates = [
-    join(process.cwd(), 'grammars', 'tree-sitter-c_sharp.wasm'),
+    // From project root (relative to this source file)
+    join(projectRoot, 'node_modules', 'tree-sitter-c-sharp', 'tree-sitter-c_sharp.wasm'),
+    join(projectRoot, 'grammars', 'tree-sitter-c_sharp.wasm'),
+    // From cwd (fallback)
     join(process.cwd(), 'node_modules', 'tree-sitter-c-sharp', 'tree-sitter-c_sharp.wasm'),
-    join(__dirname, '..', '..', 'grammars', 'tree-sitter-c_sharp.wasm'),
+    join(process.cwd(), 'grammars', 'tree-sitter-c_sharp.wasm'),
   ];
 
   for (const candidate of candidates) {
@@ -57,7 +65,7 @@ function findCSharpWasm(): string {
   }
 
   throw new Error(
-    'C# grammar WASM not found. Place tree-sitter-c_sharp.wasm in ./grammars/ or provide path via loadCSharpLanguage(path).',
+    `C# grammar WASM not found. Searched:\n${candidates.join('\n')}\nInstall: npm install tree-sitter-c-sharp`,
   );
 }
 

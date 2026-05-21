@@ -22,6 +22,7 @@ import type { ClassRole } from '../analyzer/project-graph.js';
 import { WizardSession } from '../wizard/wizard-session.js';
 import { getStepDefinition } from '../wizard/wizard-steps.js';
 import type { WizardStep } from '../wizard/wizard-types.js';
+import { runUnifiedWizard } from '../wizard/unified-wizard.js';
 
 // In-memory graph cache keyed by project path
 const graphCache = new Map<string, ProjectGraph>();
@@ -284,6 +285,35 @@ export function registerAllTools(server: McpServer): void {
       };
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  // ── migration_wizard (unified single-call wizard) ──
+  server.tool(
+    'migration_wizard',
+    'Configure and launch a complete .NET migration in one call. Collects all preferences, applies smart defaults, sets up permissions in the target workspace, and builds the knowledge graph. Only sourcePath is required — all other options have sensible defaults.',
+    {
+      sourcePath: z.string().describe('Path to the .NET source project'),
+      outputPath: z.string().optional().describe('Output directory for migrated project (default: {sourcePath}-migrated)'),
+      targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional().describe('Target platform (default: nodejs-express)'),
+      architecture: z.enum(['mvc', 'clean', 'ddd']).optional().describe('Output architecture (default: auto-detected by project size)'),
+      orm: z.string().optional().describe('ORM choice (default: platform default e.g. prisma/spring-data-jpa/sqlalchemy)'),
+      auth: z.string().optional().describe('Auth strategy (default: platform default e.g. passport-jwt/spring-security-jwt)'),
+      di: z.string().optional().describe('DI container (default: platform default)'),
+      validation: z.string().optional().describe('Validation library (default: platform default e.g. zod/bean-validation/pydantic)'),
+      testFramework: z.string().optional().describe('Test framework (default: platform default e.g. vitest/junit5/pytest)'),
+      apiDocs: z.string().optional().describe('API docs UI (default: platform default)'),
+      coverageTarget: z.number().min(0).max(100).optional().describe('Test coverage target % (default: 80)'),
+      unitTests: z.boolean().optional().describe('Generate unit tests (default: true)'),
+      integrationTests: z.boolean().optional().describe('Generate integration tests (default: true)'),
+      performanceTests: z.boolean().optional().describe('Generate performance tests (default: false)'),
+    },
+    async (params) => {
+      const { result, options, graph } = await runUnifiedWizard(params);
+      const output = { ...result, resolvedOptions: options, graph };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
       };
     },
   );
