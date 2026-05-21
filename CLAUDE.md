@@ -28,6 +28,7 @@ src/
   types/                    # Shared TypeScript types (common, dotnet, migration)
   skills/                   # Skill-based pipeline (extract phase)
     architecture/           # Architecture strategies (MVC, Clean, DDD)
+    shared/                 # Cross-skill helpers (graph-to-ir type converters)
   target-platforms/         # Target platform plugins (generate phase)
     nodejs-express/         # Node.js/Express code generator, type mapper, build system
   wizard/                   # Interactive multi-step wizard session management
@@ -111,7 +112,7 @@ Scoped rules in `.claude/rules/` — loaded automatically based on file context:
 ## Current State
 
 - Core scaffolding is complete: server, tool registry, wizard, parser infrastructure, IR types, target platform registry, build-heal loop structure
-- Skill implementations are placeholders (not yet wired up)
+- All 25 skills are implemented and registered in `skills/index.ts`: `ModelSkill`, `DataAccessSkill`, `ServiceSkill`, `ControllerSkill`, `MiddlewareSkill`, `SignalRSkill`, `BackgroundJobsSkill`, `HealthCheckSkill`, `ValidationSkill`, `RoutingSkill`, `DiSkill`, `AuthSkill`, `SwaggerSkill`, `CorsSkill`, `ApiVersioningSkill`, `RateLimitingSkill`, `CachingSkill`, `LoggingSkill`, `ConfigSkill`, `DbMigrationSkill`, `StoredProceduresSkill`, `NuGetMappingSkill`, `RazorViewFlaggingSkill`, `TestGenerationSkill`, and `DevOpsSkill`
 - `build_project` and `run_tests` tools return placeholder results
 - Node.js/Express target platform plugin has type mapper, naming conventions, architecture adapter, build system, test framework, dependency manager, and code generator scaffolded
 - No tests written yet — `tests/` directory does not exist

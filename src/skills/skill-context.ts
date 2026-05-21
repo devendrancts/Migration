@@ -3,6 +3,7 @@ import type { CSharpProjectInfo } from '../types/dotnet.js';
 import type { MigrationOptions } from '../types/migration.js';
 import type { MigrationDiagnostic, GeneratedFile, PackageDependency } from '../types/common.js';
 import type { TargetPlatform, ArchitectureStrategy } from '../target-platforms/target-platform.interface.js';
+import type { ProjectGraph } from '../analyzer/project-graph.js';
 
 export interface SkillResult {
   skillId: string;
@@ -33,6 +34,7 @@ export class MigrationContext {
 
   boundedContextMap: BoundedContextMap | null = null;
   diagnostics: MigrationDiagnostic[] = [];
+  graph: ProjectGraph | null = null;
 
   constructor(
     public readonly project: CSharpProjectInfo,

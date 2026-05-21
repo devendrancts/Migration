@@ -86,6 +86,8 @@ Rules of the road:
 
 Architecture strategies (`skills/architecture/`) provide path resolution that is logical (e.g., "where does an entity live in DDD?") and reused by both the wizard and target plugins. Strategies for MVC, Clean Architecture, and DDD exist.
 
+Shared helpers (`skills/shared/graph-to-ir.ts`) convert `ProjectGraph` nodes into IR primitives (`parseTypeRef`, `propertyToIR`, `methodToIR`, `depsToIR`, `extractHttpAction`, etc.) so individual skill files stay thin.
+
 ### Target platform plugins (`src/target-platforms/`)
 
 A plugin implements `TargetPlatform`, which composes seven subcomponents:

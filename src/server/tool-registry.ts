@@ -676,6 +676,7 @@ export function registerAllTools(server: McpServer): void {
         architectureStrategy,
         outputPath,
       );
+      if (cachedGraph) migrationContext.graph = cachedGraph;
 
       // 6. Run skill orchestrator (extract → generate)
       const skillRegistry = createDefaultSkillRegistry();

@@ -111,7 +111,8 @@ MigrationContext
 ├── allArtifacts     All IR artifacts from all skills
 ├── results          Per-skill results
 ├── diagnostics      Warnings, errors, manual-review items
-└── boundedContextMap   DDD bounded context groupings
+├── boundedContextMap   DDD bounded context groupings
+└── graph            ProjectGraph (dependency graph, null until analyzed)
 ```
 
 ## Build-Heal Loop
