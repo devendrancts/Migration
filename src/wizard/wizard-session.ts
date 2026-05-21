@@ -10,6 +10,7 @@ export class WizardSession {
   readonly sourcePlatform: SourcePlatformInfo;
   currentStep: WizardStep;
   choices: Partial<MigrationOptions>;
+  resolvedOptions: MigrationOptions | null;
   outputPath: string | null;
   status: 'in_progress' | 'confirmed' | 'executing' | 'completed';
   readonly createdAt: Date;
@@ -27,6 +28,7 @@ export class WizardSession {
     this.projectSummary = projectSummary;
     this.currentStep = 'source_analysis';
     this.choices = {};
+    this.resolvedOptions = null;
     this.outputPath = null;
     this.status = 'in_progress';
     this.createdAt = new Date();
@@ -60,8 +62,11 @@ export class WizardSession {
     this.currentStep = step;
   }
 
-  confirm(outputPath: string): void {
+  confirm(outputPath: string, options?: MigrationOptions): void {
     this.outputPath = outputPath;
     this.status = 'confirmed';
+    if (options) {
+      this.resolvedOptions = options;
+    }
   }
 }

@@ -115,9 +115,9 @@ export async function runUnifiedWizard(input: UnifiedWizardInput): Promise<{
     graphSummary = `Graph build failed: ${graphError}`;
   }
 
-  // 8. Create confirmed session
+  // 8. Create confirmed session with resolved options
   const session = WizardSession.create(sourcePath, sourcePlatform, projectSummary);
-  session.confirm(outputPath);
+  session.confirm(outputPath, options);
 
   // 9. Return result
   const result: UnifiedWizardResult = {

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { resolve, dirname, join } from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { detectPlatform } from '../analyzer/platform-detector.js';
 import { buildProjectGraph } from '../analyzer/graph-builder.js';
@@ -24,6 +26,13 @@ import { getStepDefinition } from '../wizard/wizard-steps.js';
 import type { WizardStep } from '../wizard/wizard-types.js';
 import { runUnifiedWizard } from '../wizard/unified-wizard.js';
 import { createTargetPlatformRegistry } from '../target-platforms/index.js';
+import { createDefaultSkillRegistry } from '../skills/index.js';
+import { SkillOrchestrator } from '../skills/skill-orchestrator.js';
+import { MigrationContext } from '../skills/skill-context.js';
+import { createArchitectureStrategy } from '../skills/architecture/architecture-factory.js';
+import type { CSharpProjectInfo } from '../types/dotnet.js';
+import type { TargetPlatformId } from '../types/migration.js';
+import type { GeneratedFile } from '../types/common.js';
 
 // In-memory graph cache keyed by project path
 const graphCache = new Map<string, ProjectGraph>();
@@ -443,6 +452,177 @@ export function registerAllTools(server: McpServer): void {
       const output = { ...result, resolvedOptions: options, graph };
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+      };
+    },
+  );
+
+  // ── execute_migration ──
+  server.tool(
+    'execute_migration',
+    'Execute the migration pipeline after wizard confirmation. Runs the skill orchestrator (extract IR → generate code), writes all generated files to disk, and produces a package manifest. Call this after migration_wizard returns a confirmed session.',
+    {
+      sessionId: z.string().describe('Session ID from a confirmed migration_wizard call'),
+    },
+    async ({ sessionId }) => {
+      // 1. Retrieve confirmed session
+      const session = WizardSession.get(sessionId);
+      if (!session) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Session not found. Call migration_wizard first.' }) }],
+        };
+      }
+      if (session.status !== 'confirmed') {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: `Session status is "${session.status}", expected "confirmed". Call migration_wizard first.` }) }],
+        };
+      }
+      if (!session.resolvedOptions) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Session has no resolved migration options. Re-run migration_wizard.' }) }],
+        };
+      }
+
+      session.status = 'executing';
+      const options = session.resolvedOptions;
+      const outputPath = resolve(session.outputPath!);
+
+      // 2. Get target platform plugin
+      const platformRegistry = createTargetPlatformRegistry();
+      const targetPlatform = platformRegistry.get(options.targetPlatform as TargetPlatformId);
+
+      // 3. Get architecture strategy
+      const architectureStrategy = createArchitectureStrategy(options.architecture);
+
+      // 4. Build minimal CSharpProjectInfo from session data
+      const projectInfo: CSharpProjectInfo = {
+        name: session.sourcePath.split(/[\\/]/).pop() ?? 'migrated-project',
+        rootPath: session.sourcePath,
+        sourcePlatform: session.sourcePlatform,
+        projects: [],
+      };
+
+      // Enrich with graph data if available
+      const cachedGraph = graphCache.get(session.sourcePath);
+      if (cachedGraph) {
+        // Extract project files from graph nodes
+        const sourceFiles = new Set<string>();
+        for (const node of cachedGraph.nodes.values()) {
+          if (node.filePath) sourceFiles.add(node.filePath);
+        }
+        if (sourceFiles.size > 0) {
+          projectInfo.projects = [{
+            name: projectInfo.name,
+            path: session.sourcePath,
+            targetFramework: session.sourcePlatform.targetFramework,
+            projectType: 'web',
+            packages: [],
+            projectReferences: [],
+            sourceFiles: Array.from(sourceFiles),
+            configFiles: [],
+          }];
+        }
+      }
+
+      // 5. Create migration context
+      const migrationContext = new MigrationContext(
+        projectInfo,
+        options,
+        targetPlatform,
+        architectureStrategy,
+        outputPath,
+      );
+
+      // 6. Run skill orchestrator (extract → generate)
+      const skillRegistry = createDefaultSkillRegistry();
+      const orchestrator = new SkillOrchestrator(skillRegistry, targetPlatform);
+      const migrationResult = await orchestrator.execute(projectInfo, migrationContext);
+
+      // 7. Generate package manifest
+      const genCtx = {
+        architecture: options.architecture,
+        architectureStrategy,
+        targetOptions: options.targetOptions as unknown as Record<string, unknown>,
+        outputRoot: outputPath,
+        allArtifacts: migrationResult.artifacts,
+      };
+      const manifest = targetPlatform.dependencyManager.generateManifest(
+        migrationResult.dependencies,
+        projectInfo.name,
+        genCtx,
+      );
+      migrationResult.files.push(manifest);
+
+      // 8. Generate .env template
+      const envFile: GeneratedFile = {
+        relativePath: '.env',
+        content: `# Environment variables for ${projectInfo.name}\nPORT=3000\nNODE_ENV=development\n`,
+        overwrite: false,
+      };
+      migrationResult.files.push(envFile);
+
+      // 9. Generate .gitignore
+      const gitignoreFile: GeneratedFile = {
+        relativePath: '.gitignore',
+        content: `node_modules/\ndist/\n.env\n*.log\ncoverage/\n`,
+        overwrite: false,
+      };
+      migrationResult.files.push(gitignoreFile);
+
+      // 10. Write all files to disk
+      const writeResults: { path: string; written: boolean; error?: string }[] = [];
+      for (const file of migrationResult.files) {
+        const fullPath = join(outputPath, file.relativePath);
+        try {
+          mkdirSync(dirname(fullPath), { recursive: true });
+          writeFileSync(fullPath, file.content, 'utf-8');
+          writeResults.push({ path: file.relativePath, written: true });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          writeResults.push({ path: file.relativePath, written: false, error: msg });
+          migrationResult.diagnostics.push({
+            level: 'error',
+            skillId: 'file-writer',
+            sourceFile: file.relativePath,
+            sourceLine: null,
+            message: `Failed to write ${file.relativePath}: ${msg}`,
+            suggestion: 'Check file permissions and disk space.',
+            category: 'unsupported-pattern',
+          });
+        }
+      }
+
+      session.status = 'completed';
+
+      const filesWritten = writeResults.filter((r) => r.written).length;
+      const filesFailed = writeResults.filter((r) => !r.written).length;
+
+      const result = {
+        success: filesFailed === 0,
+        sessionId,
+        outputPath,
+        summary: {
+          skillsExecuted: migrationResult.skillsExecuted,
+          artifactsExtracted: migrationResult.artifacts.length,
+          filesGenerated: migrationResult.files.length,
+          filesWritten,
+          filesFailed,
+          dependencyCount: migrationResult.dependencies.length,
+          diagnosticCount: migrationResult.diagnostics.length,
+          totalDurationMs: migrationResult.totalDurationMs,
+        },
+        generatedFiles: writeResults,
+        dependencies: migrationResult.dependencies,
+        diagnostics: migrationResult.diagnostics,
+        nextSteps: [
+          `cd ${outputPath}`,
+          targetPlatform.dependencyManager.getInstallCommand(),
+          targetPlatform.dependencyManager.getBuildCommand(),
+          targetPlatform.dependencyManager.getTestCommand(),
+        ],
+      };
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
       };
     },
   );
