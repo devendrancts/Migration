@@ -13,12 +13,16 @@ import type {
   IRTypeRef,
   IRProperty,
   IRMethod,
+  IRMethodBody,
   IRParameter,
   IRDependency,
   IRAnnotation,
   IRValidationRule,
   IRResponseMapping,
 } from '../../ir/types.js';
+import type { IRStatement, IRBusinessRule } from '../../ir/body-ir.js';
+import { extractMethodBody } from '../../parser/body-extractor.js';
+import { computeComplexity } from '../../parser/body-complexity.js';
 
 const PRIMITIVE_MAP: Record<string, string> = {
   int: 'int',
@@ -185,7 +189,14 @@ export function paramToIR(p: { name: string; type: string }, methodAttrs: string
   };
 }
 
-export function methodToIR(m: GraphMethodSummary): IRMethod {
+export function methodToIR(m: GraphMethodSummary, options?: { extractBody?: boolean }): IRMethod {
+  const shouldExtractBody = options?.extractBody ?? true;
+  let body: IRMethodBody | undefined;
+
+  if (shouldExtractBody && m.bodySourceLines && m.bodySourceLines.length > 0) {
+    body = extractBodyFromSource(m.bodySourceLines);
+  }
+
   return {
     name: m.name,
     parameters: m.parameters.map((p) => paramToIR(p, m.attributes)),
@@ -193,7 +204,125 @@ export function methodToIR(m: GraphMethodSummary): IRMethod {
     isAsync: m.isAsync,
     isStatic: false,
     accessModifier: 'public',
+    ...(body ? { body } : {}),
   };
+}
+
+/**
+ * Extract a full IRMethodBody from raw C# source lines.
+ * Used by methodToIR and can be called directly by skills
+ * that construct IRMethod or IRAction manually.
+ */
+export function extractBodyFromSource(bodySourceLines: string[]): IRMethodBody {
+  let statements: IRStatement[];
+  try {
+    statements = extractMethodBody(bodySourceLines);
+  } catch {
+    statements = bodySourceLines.map((l) => ({
+      kind: 'raw' as const,
+      csharpSource: l.trim(),
+    }));
+  }
+
+  const complexity = computeComplexity(statements);
+  const businessRules = inferBusinessRules(statements);
+  const queryOperations = inferQueryOperations(statements);
+
+  return {
+    statements,
+    queryOperations,
+    businessRules,
+    rawSourceLines: bodySourceLines,
+    complexity,
+  };
+}
+
+function inferBusinessRules(statements: IRStatement[]): IRBusinessRule[] {
+  const rules: IRBusinessRule[] = [];
+  for (let i = 0; i < statements.length; i++) {
+    const stmt = statements[i];
+    if (stmt.kind === 'if') {
+      // Check if it's a guard clause (if + throw/return)
+      const isGuard = stmt.then.length === 1 &&
+        (stmt.then[0].kind === 'throw' || stmt.then[0].kind === 'return');
+      rules.push({
+        description: isGuard ? 'Guard clause' : 'Conditional flow',
+        ruleKind: isGuard ? 'guard-clause' : 'conditional-flow',
+        relatedStatements: [i],
+      });
+    }
+  }
+  return rules;
+}
+
+function inferQueryOperations(statements: IRStatement[]): import('../../ir/types.js').IRQueryOperation[] {
+  // Scan for LINQ chains with EF patterns to extract query operations
+  const ops: import('../../ir/types.js').IRQueryOperation[] = [];
+  walkStatementsForQueries(statements, ops);
+  return ops;
+}
+
+function walkStatementsForQueries(
+  stmts: IRStatement[],
+  ops: import('../../ir/types.js').IRQueryOperation[],
+): void {
+  for (const stmt of stmts) {
+    if (stmt.kind === 'expression-stmt') walkExprForQueries(stmt.expression, ops);
+    else if (stmt.kind === 'return' && stmt.value) walkExprForQueries(stmt.value, ops);
+    else if (stmt.kind === 'variable-decl' && stmt.initializer) walkExprForQueries(stmt.initializer, ops);
+    else if (stmt.kind === 'if') {
+      walkStatementsForQueries(stmt.then, ops);
+      if (stmt.else) walkStatementsForQueries(stmt.else, ops);
+    } else if (stmt.kind === 'foreach') {
+      walkExprForQueries(stmt.iterable, ops);
+      walkStatementsForQueries(stmt.body, ops);
+    } else if (stmt.kind === 'try-catch') {
+      walkStatementsForQueries(stmt.tryBody, ops);
+    }
+  }
+}
+
+function walkExprForQueries(
+  expr: import('../../ir/body-ir.js').IRExpression,
+  ops: import('../../ir/types.js').IRQueryOperation[],
+): void {
+  if (expr.kind === 'linq-chain') {
+    const lastOp = expr.operations[expr.operations.length - 1];
+    const method = lastOp?.method ?? '';
+    let queryKind: import('../../ir/types.js').IRQueryOperation['kind'] = 'find-many';
+
+    if (/^(First|Single|Find)/.test(method)) queryKind = 'find-one';
+    else if (/^(Add|Create|Insert)/.test(method)) queryKind = 'create';
+    else if (/^(Update|Modify)/.test(method)) queryKind = 'update';
+    else if (/^(Remove|Delete)/.test(method)) queryKind = 'delete';
+    else if (/^(Count|LongCount)/.test(method)) queryKind = 'count';
+    else if (/^(Any|All|Exists)/.test(method)) queryKind = 'exists';
+
+    // Try to infer entity name from the source expression
+    let entity = 'Unknown';
+    if (expr.source.kind === 'identifier') entity = expr.source.name;
+    else if (expr.source.kind === 'property-access') entity = expr.source.property;
+
+    const includes = expr.operations
+      .filter((op) => op.method === 'Include' || op.method === 'ThenInclude')
+      .flatMap((op) => op.arguments.map((a) => {
+        if (a.kind === 'lambda' && !Array.isArray(a.body) && a.body.kind === 'property-access') {
+          return a.body.property;
+        }
+        return a.kind === 'identifier' ? a.name : '?';
+      }));
+
+    ops.push({
+      kind: queryKind,
+      entity,
+      ...(includes.length > 0 ? { includes } : {}),
+    });
+  } else if (expr.kind === 'method-call') {
+    if (expr.object) walkExprForQueries(expr.object, ops);
+    for (const arg of expr.arguments) walkExprForQueries(arg, ops);
+  } else if (expr.kind === 'await') {
+    walkExprForQueries(expr.expression, ops);
+  }
 }
 
 export function depsToIR(constructorDeps: string[]): IRDependency[] {

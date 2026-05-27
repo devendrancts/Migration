@@ -12,6 +12,7 @@ import {
   extractAuthInfo,
   defaultResponseMap,
   inferBoundedContext,
+  extractBodyFromSource,
 } from '../shared/graph-to-ir.js';
 
 export class ControllerSkill implements MigrationSkill {
@@ -41,6 +42,11 @@ export class ControllerSkill implements MigrationSkill {
         const returnType = parseTypeRef(m.returnType);
         const methodAuth = extractAuthInfo(m.attributes);
         const finalAuth = methodAuth.authRequired || controllerAuth.authRequired;
+        // Extract action body from method source lines
+        const actionBody = m.bodySourceLines?.length
+          ? extractBodyFromSource(m.bodySourceLines)
+          : undefined;
+
         actions.push({
           name: m.name,
           httpMethod: http.httpMethod,
@@ -56,6 +62,7 @@ export class ControllerSkill implements MigrationSkill {
             ? { authPolicies: methodAuth.policies ?? controllerAuth.policies ?? [] }
             : {}),
           isAsync: m.isAsync,
+          ...(actionBody ? { body: actionBody } : {}),
         });
       }
 

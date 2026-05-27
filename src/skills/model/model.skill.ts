@@ -44,7 +44,7 @@ export class ModelSkill implements MigrationSkill {
         ...(bc ? { boundedContext: bc } : {}),
         properties,
         relationships,
-        behaviors: node.methods.map(methodToIR),
+        behaviors: node.methods.map((m) => methodToIR(m)),
         sourceFile: node.filePath,
       } satisfies IRModel);
     }

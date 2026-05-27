@@ -4,6 +4,17 @@
 // Target platform plugins consume these to generate platform-specific code.
 // ─────────────────────────────────────────────────────────
 
+export type {
+  IRStatement,
+  IRExpression,
+  IRMethodComplexity,
+  IRBusinessRule,
+  IRLinqChainExpr,
+  IRLinqOperation,
+  IRRawStatement,
+  IRRawExpr,
+} from './body-ir.js';
+
 // ── Top-Level Union ──
 
 export type IRArtifact =
@@ -112,9 +123,11 @@ export interface IRMethod {
 }
 
 export interface IRMethodBody {
+  statements: import('./body-ir.js').IRStatement[];
   queryOperations: IRQueryOperation[];
-  businessRules: string[];
+  businessRules: import('./body-ir.js').IRBusinessRule[];
   rawSourceLines: string[];
+  complexity: import('./body-ir.js').IRMethodComplexity;
 }
 
 export interface IRQueryOperation {
@@ -160,6 +173,7 @@ export interface IRAction {
   authPolicies?: string[];
   isAsync: boolean;
   description?: string;
+  body?: IRMethodBody;
 }
 
 export interface IRResponseMapping {

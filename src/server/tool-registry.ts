@@ -431,10 +431,10 @@ export function registerAllTools(server: McpServer): void {
   // ── migration_wizard (unified single-call wizard) ──
   server.tool(
     'migration_wizard',
-    'Execute a complete .NET migration. REQUIRED FLOW: (1) Call this tool with ONLY sourcePath to get the wizard form with all questions and available choices. (2) Present ALL questions to the user and collect their answers. (3) Call this tool AGAIN with sourcePath, outputPath, userConfirmed=true, and ALL user-selected values. Do NOT skip the form step or use defaults without user consent.',
+    'Execute a complete .NET migration. REQUIRED FLOW: (1) Call this tool with ONLY sourcePath to get the wizard form with all questions and available choices. (2) Present ALL questions to the user — you MUST ask for the output folder path. (3) Call this tool AGAIN with sourcePath, outputPath, userConfirmed=true, and ALL user-selected values. Do NOT skip the form step or use defaults without user consent. The outputPath MUST be provided by the user.',
     {
       sourcePath: z.string(),
-      outputPath: z.string().optional().describe('Destination path for the migrated application'),
+      outputPath: z.string().optional().describe('REQUIRED when userConfirmed=true. The absolute folder path where the migrated project will be generated. MUST be provided by the user — do not use a default.'),
       userConfirmed: z.boolean().optional().describe('Set to true ONLY after the user has reviewed and confirmed all wizard choices'),
       targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional(),
       architecture: z.enum(['mvc', 'clean', 'ddd']).optional(),
@@ -589,7 +589,9 @@ export function registerAllTools(server: McpServer): void {
       // ── Step 2: userConfirmed=true — validate required fields and execute ──
       if (!params.outputPath) {
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'outputPath is required when userConfirmed is true. Ask the user for the destination path.' }) }],
+          content: [{ type: 'text' as const, text: JSON.stringify({
+            error: 'outputPath is REQUIRED when userConfirmed is true. You MUST ask the user to provide the absolute folder path where the migrated project should be generated. Do NOT use a default — the user must explicitly provide this path.',
+          }) }],
         };
       }
 

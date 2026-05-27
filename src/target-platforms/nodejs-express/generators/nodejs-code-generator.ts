@@ -36,6 +36,7 @@ import type {
   IRProperty,
 } from '../../../ir/types.js';
 import type { GeneratedFile } from '../../../types/common.js';
+import { renderMethodBody, renderStatements, renderExpression } from './statement-renderer.js';
 
 export class NodeJsCodeGenerator implements TargetCodeGenerator {
   generateFromArtifact(artifact: IRArtifact, ctx: GenerationContext): GeneratedFile[] {
@@ -553,10 +554,26 @@ export const eventBus = new EventBus();
       }
     }
 
-    const bodyLines = paramExtractions.length > 0 ? paramExtractions.join('\n') + '\n' : '';
+    const paramLines = paramExtractions.length > 0 ? paramExtractions.join('\n') + '\n' : '';
+
+    // If we have a parsed body with sufficient confidence, render real logic
+    if (action.body && action.body.statements.length > 0) {
+      const score = action.body.complexity?.confidenceScore ?? 0;
+      if (score >= 0.3) {
+        const bodyCode = renderMethodBody(action.body, 2);
+        return `${isAsync}function ${handlerName}(req: Request, res: Response): void {
+${paramLines}${bodyCode}
+}`;
+      }
+    }
+
+    // Fallback: stub with raw source as comments
+    const rawComments = action.body?.rawSourceLines?.length
+      ? action.body.rawSourceLines.slice(0, 10).map((l) => `  // ${l.trim()}`).join('\n') + '\n'
+      : '';
 
     return `${isAsync}function ${handlerName}(req: Request, res: Response): void {
-${bodyLines}  // TODO: Implement ${action.name} handler
+${paramLines}${rawComments}  // TODO: Implement ${action.name} handler
   res.status(200).json({ message: '${action.name} not yet implemented' });
 }`;
   }
@@ -2339,11 +2356,23 @@ function renderMethod(method: IRMethod): string {
   const asyncKw = method.isAsync ? 'async ' : '';
   const accessKw = method.accessModifier === 'private' ? 'private ' : '';
 
+  // If we have a structured body with adequate confidence, render real logic
+  if (method.body && method.body.statements.length > 0) {
+    const score = method.body.complexity?.confidenceScore ?? 0;
+    if (score >= 0.3) {
+      const bodyCode = renderMethodBody(method.body, 4);
+      return `  ${accessKw}${asyncKw}${name}(${params}): ${retType} {
+${bodyCode}
+  }`;
+    }
+  }
+
+  // Fallback: raw source as comments + throw
   const bodyLines: string[] = [];
   if (method.body?.rawSourceLines?.length) {
-    bodyLines.push(`    // Original source:`);
-    for (const line of method.body.rawSourceLines.slice(0, 5)) {
-      bodyLines.push(`    // ${line}`);
+    bodyLines.push(`    // Original C# source:`);
+    for (const line of method.body.rawSourceLines.slice(0, 10)) {
+      bodyLines.push(`    // ${line.trim()}`);
     }
   }
   bodyLines.push(`    throw new Error('${name} not yet implemented');`);

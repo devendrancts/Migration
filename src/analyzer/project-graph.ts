@@ -62,6 +62,9 @@ export interface GraphMethodSummary {
   attributes: string[];
   isAsync: boolean;
   calledTypes: string[];           // types referenced in method body
+  bodySourceLines?: string[];      // raw C# source lines of the method body
+  bodyStartLine?: number;          // 0-based start line in file
+  bodyEndLine?: number;            // 0-based end line in file
 }
 
 export interface GraphPropertySummary {

@@ -212,9 +212,24 @@ function extractMethodsFromAST(classNode: Parser.SyntaxNode, className: string):
       }
     }
 
-    // Extract called types from method body
+    // Extract called types and body source from method body
     const body = methodNode.childForFieldName('body');
     const calledTypes = body ? extractCalledTypesFromAST(body) : [];
+
+    // Capture raw source lines of method body for downstream extraction
+    let bodySourceLines: string[] | undefined;
+    let bodyStartLine: number | undefined;
+    let bodyEndLine: number | undefined;
+    if (body) {
+      bodyStartLine = body.startPosition.row;
+      bodyEndLine = body.endPosition.row;
+      const bodyText = body.text;
+      // Strip enclosing braces { ... }
+      const inner = bodyText.startsWith('{') && bodyText.endsWith('}')
+        ? bodyText.slice(1, -1)
+        : bodyText;
+      bodySourceLines = inner.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim().length > 0);
+    }
 
     methods.push({
       name: nameNode.text,
@@ -223,6 +238,7 @@ function extractMethodsFromAST(classNode: Parser.SyntaxNode, className: string):
       attributes: attrs,
       isAsync: modifiers.includes('async'),
       calledTypes,
+      ...(bodySourceLines ? { bodySourceLines, bodyStartLine, bodyEndLine } : {}),
     });
   }
 

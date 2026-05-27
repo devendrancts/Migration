@@ -17,7 +17,12 @@ export async function runUnifiedWizard(input: UnifiedWizardInput): Promise<{
   graph: Record<string, unknown>;
 }> {
   const sourcePath = resolve(input.sourcePath);
-  const outputPath = resolve(input.outputPath ?? `${sourcePath}-migrated`);
+  if (!input.outputPath) {
+    throw new Error(
+      'outputPath is required. Ask the user for the destination folder path where the migrated project should be generated.',
+    );
+  }
+  const outputPath = resolve(input.outputPath);
 
   // 1. Detect source platform
   const sourcePlatform = detectPlatform(sourcePath);

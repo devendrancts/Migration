@@ -26,7 +26,7 @@ export class DataAccessSkill implements MigrationSkill {
         ...(iface ? { interfaceName: iface } : {}),
         entity: entity ?? 'Unknown',
         ...(bc ? { boundedContext: bc } : {}),
-        methods: node.methods.map(methodToIR),
+        methods: node.methods.map((m) => methodToIR(m)),
         sourceFile: node.filePath,
       };
     });

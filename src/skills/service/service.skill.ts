@@ -27,7 +27,7 @@ export class ServiceSkill implements MigrationSkill {
         ...(iface ? { interfaceName: iface } : {}),
         ...(bc ? { boundedContext: bc } : {}),
         dependencies: depsToIR(node.constructorDeps),
-        methods: node.methods.map(methodToIR),
+        methods: node.methods.map((m) => methodToIR(m)),
         sourceFile: node.filePath,
       };
     });

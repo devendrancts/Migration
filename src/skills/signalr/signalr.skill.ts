@@ -20,7 +20,7 @@ export class SignalRSkill implements MigrationSkill {
       kind: 'signalr-hub',
       name: node.name,
       hubPath: `/${node.name.replace(/Hub$/, '').toLowerCase()}`,
-      methods: node.methods.map(methodToIR),
+      methods: node.methods.map((m) => methodToIR(m)),
       events: [],
       groups: [],
       sourceFile: node.filePath,
