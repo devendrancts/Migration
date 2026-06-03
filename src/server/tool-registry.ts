@@ -436,7 +436,8 @@ export function registerAllTools(server: McpServer): void {
       sourcePath: z.string(),
       outputPath: z.string().optional().describe('REQUIRED when userConfirmed=true. The absolute folder path where the migrated project will be generated. MUST be provided by the user — do not use a default.'),
       userConfirmed: z.boolean().optional().describe('Set to true ONLY after the user has reviewed and confirmed all wizard choices'),
-      targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix']).optional(),
+      targetPlatform: z.enum(['nodejs-express', 'java-spring', 'python-fastapi', 'rust-actix', 'dotnet-core']).optional(),
+      apiStyle: z.enum(['controllers', 'minimal-api']).optional().describe('API style for dotnet-core target: controllers (traditional) or minimal-api (endpoints)'),
       architecture: z.enum(['mvc', 'clean', 'ddd']).optional(),
       orm: z.string().optional(),
       auth: z.string().optional(),
@@ -700,18 +701,25 @@ export function registerAllTools(server: McpServer): void {
       );
       migrationResult.files.push(manifest);
 
-      // 8. Generate .env template
-      const envFile: GeneratedFile = {
-        relativePath: '.env',
-        content: `# Environment variables for ${projectInfo.name}\nPORT=3000\nNODE_ENV=development\n`,
-        overwrite: false,
-      };
-      migrationResult.files.push(envFile);
+      // 8. Generate .env template / .gitignore (platform-specific)
+      const isDotNet = options.targetPlatform === 'dotnet-core';
+
+      if (!isDotNet) {
+        const envFile: GeneratedFile = {
+          relativePath: '.env',
+          content: `# Environment variables for ${projectInfo.name}\nPORT=3000\nNODE_ENV=development\n`,
+          overwrite: false,
+        };
+        migrationResult.files.push(envFile);
+      }
 
       // 9. Generate .gitignore
+      const gitignoreContent = isDotNet
+        ? `bin/\nobj/\n.vs/\n*.user\n*.suo\n*.log\ncoverage/\nTestResults/\n`
+        : `node_modules/\ndist/\n.env\n*.log\ncoverage/\n`;
       const gitignoreFile: GeneratedFile = {
         relativePath: '.gitignore',
-        content: `node_modules/\ndist/\n.env\n*.log\ncoverage/\n`,
+        content: gitignoreContent,
         overwrite: false,
       };
       migrationResult.files.push(gitignoreFile);

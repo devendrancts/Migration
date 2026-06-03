@@ -4,7 +4,8 @@ export type TargetPlatformId =
   | 'nodejs-express'
   | 'java-spring'
   | 'python-fastapi'
-  | 'rust-actix';
+  | 'rust-actix'
+  | 'dotnet-core';
 
 export type ArchitectureType = 'mvc' | 'clean' | 'ddd';
 
@@ -59,7 +60,8 @@ export type TargetPlatformOptions =
   | NodeJsTargetOptions
   | JavaSpringTargetOptions
   | PythonFastApiTargetOptions
-  | RustActixTargetOptions;
+  | RustActixTargetOptions
+  | DotNetCoreTargetOptions;
 
 export interface NodeJsTargetOptions {
   platform: 'nodejs-express';
@@ -100,6 +102,30 @@ export interface RustActixTargetOptions {
   diContainer: 'manual';
   testFramework: 'cargo-test';
   framework: 'actix-web' | 'axum';
+}
+
+export interface DotNetCoreTargetOptions {
+  platform: 'dotnet-core';
+  orm: 'efcore' | 'dapper' | 'ado-net';
+  validation: 'data-annotations' | 'fluent-validation';
+  authStrategy: 'aspnetcore-identity' | 'jwt-bearer' | 'custom' | 'none';
+  diContainer: 'builtin';
+  testFramework: 'xunit' | 'nunit' | 'mstest';
+  apiStyle: 'controllers' | 'minimal-api';
+  dotnetVersion: 8 | 9;
+}
+
+export function getDefaultDotNetCoreOptions(): DotNetCoreTargetOptions {
+  return {
+    platform: 'dotnet-core',
+    orm: 'efcore',
+    validation: 'data-annotations',
+    authStrategy: 'jwt-bearer',
+    diContainer: 'builtin',
+    testFramework: 'xunit',
+    apiStyle: 'controllers',
+    dotnetVersion: 8,
+  };
 }
 
 export function getDefaultNodeJsOptions(): NodeJsTargetOptions {

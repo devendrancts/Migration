@@ -50,6 +50,13 @@ export function getStepDefinition(
               'Blazing-fast Rust backend with Actix Web and Diesel ORM.',
             isRecommended: false,
           },
+          {
+            value: 'dotnet-core',
+            label: '.NET 8 (ASP.NET Core)',
+            description:
+              'Modernize .NET Framework to .NET 8 with ASP.NET Core, EF Core, and modern patterns.',
+            isRecommended: false,
+          },
         ],
         nextStep: 'choose_architecture',
         previousStep: 'source_analysis',

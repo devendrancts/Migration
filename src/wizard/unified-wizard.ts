@@ -75,6 +75,10 @@ export async function runUnifiedWizard(input: UnifiedWizardInput): Promise<{
   if (input.performanceTests === undefined) defaultsApplied.push('performanceTests');
 
   // 5. Build MigrationOptions
+  const dotnetExtras = targetPlatformId === 'dotnet-core'
+    ? { apiStyle: (input as unknown as Record<string, unknown>)['apiStyle'] ?? 'controllers', dotnetVersion: 8 }
+    : {};
+
   const options: MigrationOptions = {
     sourcePlatform,
     targetPlatform: targetPlatformId,
@@ -85,6 +89,7 @@ export async function runUnifiedWizard(input: UnifiedWizardInput): Promise<{
       authStrategy: auth,
       diContainer: di,
       testFramework,
+      ...dotnetExtras,
     } as MigrationOptions['targetOptions'],
     architecture,
     testing: {
